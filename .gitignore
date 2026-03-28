@@ -1,3 +1,32 @@
+# Environment variables — never commit API keys
+.env
+
+# VA portal uploaded PDFs — generated at runtime, not source code
+mock_va_portal/submissions/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Test caches
+.pytest_cache/
+.hypothesis/
+
+# Node
+node_modules/
+coverage/
+
+# macOS
+.DS_Store
 .DS_store
 **/.DS_store
-__pyccache__/
+
+# VS Code workspace settings (optional — remove this line if team uses shared settings)
+.vscode/
