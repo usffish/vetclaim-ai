@@ -1,3 +1,9 @@
+# Documentation — keep locally, don't commit
+*.md
+
+# Root test file (old test.py)
+/test.py
+
 # Environment variables — never commit API keys
 .env
 .env.local
