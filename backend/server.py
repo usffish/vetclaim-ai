@@ -11,10 +11,31 @@ Routes:
 
 from __future__ import annotations
 
+import sys
+
+# ---------------------------------------------------------------------------
+# Python version guard — google-adk requires 3.13+.
+# If launched by Anaconda or any older interpreter, re-exec using the venv.
+# ---------------------------------------------------------------------------
+if sys.version_info < (3, 13):
+    import os as _os
+    from pathlib import Path as _Path
+    _root = _Path(__file__).resolve().parent.parent
+    _venv_py = _root / "venv" / "bin" / "python3"          # macOS / Linux
+    if not _venv_py.exists():
+        _venv_py = _root / "venv" / "Scripts" / "python.exe"  # Windows
+    if _venv_py.exists():
+        _os.execv(str(_venv_py), [str(_venv_py)] + sys.argv)
+    else:
+        sys.exit(
+            f"ERROR: Python {sys.version} is too old (need 3.13+) and no venv "
+            f"found at {_root / 'venv'}.\n"
+            "Run: python3.13 -m venv venv && venv/bin/pip install -r requirements.txt"
+        )
+
 import json
 import os
 import queue
-import sys
 import tempfile
 import threading
 import uuid

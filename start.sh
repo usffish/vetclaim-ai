@@ -43,21 +43,44 @@ echo ""
 # Helper to kill processes on a port
 kill_port() {
   local port=$1
-  # Get all PIDs using the port
-  local pids=$(lsof -t -i:$port)
+  local pids=$(lsof -t -i:$port 2>/dev/null)
   if [ -n "$pids" ]; then
     echo -e "  ${RED}Port $port is in use. Killing process(es): $pids${RESET}"
-    # Kill all PIDs found
     echo "$pids" | xargs kill -9 2>/dev/null
-    sleep 1 # Give it a moment to clear
+    sleep 1
   fi
 }
+
+# ── Python virtual environment ──────────────────────────────
+# google-adk requires Python 3.13+; prefer it explicitly
+VENV_DIR="$ROOT/venv"
+if command -v python3.13 &>/dev/null; then
+  PY_BIN="python3.13"
+elif command -v python3 &>/dev/null; then
+  PY_BIN="python3"
+else
+  echo -e "  ${RED}Python 3 not found. Please install Python 3.13+.${RESET}"
+  exit 1
+fi
+
+if [ ! -d "$VENV_DIR" ]; then
+  echo -e "  ${GOLD}No venv found — creating one with $PY_BIN and installing dependencies…${RESET}"
+  $PY_BIN -m venv "$VENV_DIR"
+  "$VENV_DIR/bin/pip" install --quiet -r "$ROOT/requirements.txt"
+  echo -e "  ${GREEN}Dependencies installed.${RESET}\n"
+fi
+
+# Use venv python; fall back to Scripts/ on Windows
+if [ -f "$VENV_DIR/bin/python3" ]; then
+  PYTHON="$VENV_DIR/bin/python3"
+else
+  PYTHON="$VENV_DIR/Scripts/python"
+fi
 
 # Kill all child processes on exit
 cleanup() {
   echo ""
   echo -e "  ${RED}Stopping all services…${RESET}"
-  # Kill the process group of each background job
   jobs -p | xargs -r kill 2>/dev/null
   wait 2>/dev/null
   echo -e "  ${GOLD}All services stopped. Goodbye!${RESET}"
@@ -70,7 +93,7 @@ kill_port 5001
 (
   cd "$ROOT/backend"
   echo -e "[${BLUE}backend${RESET}]   Starting Flask API on :5001…"
-  python3 server.py 2>&1 | sed "s/^/  [backend]  /"
+  $PYTHON server.py 2>&1 | sed "s/^/  [backend]  /"
 ) &
 
 # ── Mock VA Portal (Flask, port 5050) ───────────────────────
@@ -78,7 +101,7 @@ kill_port 5050
 (
   cd "$ROOT/mock_va_portal"
   echo -e "[${GREEN}va-portal${RESET}] Starting Mock VA Portal on :5050…"
-  python3 server.py 2>&1 | sed "s/^/  [va-portal] /"
+  $PYTHON server.py 2>&1 | sed "s/^/  [va-portal] /"
 ) &
 
 # ── Frontend (Vite, port 5173) ──────────────────────────────
