@@ -3,6 +3,7 @@
 # Double-click this file to start all servers and open the app in your browser.
 
 ROOT="/Users/ismai/hackathon/vetclaim"
+PYTHON="/opt/anaconda3/bin/python3"
 
 # ── Cleanup on exit ─────────────────────────────────────────
 cleanup() {
@@ -22,10 +23,10 @@ for port in 5001 5050 5173; do
 done
 
 echo "Starting Backend API    → http://localhost:5001"
-(cd "$ROOT/backend" && python3 server.py 2>&1 | sed 's/^/[backend]   /') &
+(cd "$ROOT/backend" && $PYTHON server.py 2>&1 | sed 's/^/[backend]   /') &
 
 echo "Starting Mock VA Portal → http://localhost:5050"
-(cd "$ROOT/mock_va_portal" && python3 server.py 2>&1 | sed 's/^/[va-portal] /') &
+(cd "$ROOT/mock_va_portal" && $PYTHON server.py 2>&1 | sed 's/^/[va-portal] /') &
 
 echo "Starting Frontend       → http://localhost:5173"
 (cd "$ROOT/frontend" && npm run dev 2>&1 | sed 's/^/[frontend]  /') &
