@@ -18,7 +18,7 @@ const VA_PORTAL_BASE   = "http://localhost:5050";
 // In production this would be injected server-side.
 const VA_API_KEY = document.querySelector('meta[name="va-api-key"]')?.content || "";
 
-// The demo veteran's branch code as stored in the VA system
+// Default branch code — overridden per-profile when the switcher is used
 const DEMO_VETERAN_BRANCH_CODE = "ARMY";
 
 // How often (ms) to poll the portal server for new submissions.
@@ -34,10 +34,24 @@ const POLL_INTERVAL_MS = 3000;
  * Falls back gracefully if the API is unreachable during the demo.
  */
 async function initVABranchVerification() {
+  initVABranchVerificationForProfile(DEMO_VETERAN_BRANCH_CODE);
+}
+
+/**
+ * Same as initVABranchVerification but accepts a branch code so it works
+ * for any profile, not just the default James Wilson / ARMY profile.
+ *
+ * @param {string} branchCode - e.g. "ARMY", "NAVY", "MARINES"
+ */
+async function initVABranchVerificationForProfile(branchCode) {
   const branchEl = document.getElementById("va-service-branch");
   if (!branchEl) return;
 
   branchEl.textContent = "Loading...";
+
+  // Remove any existing badge before adding a new one
+  const existingBadge = branchEl.parentNode.querySelector(".va-verified-badge");
+  if (existingBadge) existingBadge.remove();
 
   try {
     const response = await fetch(`${VA_SANDBOX_BASE}/service-branches`, {
@@ -47,8 +61,8 @@ async function initVABranchVerification() {
     if (!response.ok) throw new Error(`VA API ${response.status}`);
 
     const data = await response.json();
-    const match = data.items.find(b => b.code === DEMO_VETERAN_BRANCH_CODE);
-    branchEl.textContent = match ? match.description : "Army";
+    const match = data.items.find(b => b.code === branchCode);
+    branchEl.textContent = match ? match.description : branchCode;
 
     // Add the verified badge — visual proof of live VA API connection
     const badge = document.createElement("span");
@@ -60,7 +74,7 @@ async function initVABranchVerification() {
   } catch (err) {
     // API unreachable — fall back silently so the demo isn't blocked
     console.warn("VA API unavailable, using fallback:", err.message);
-    branchEl.textContent = "Army";
+    branchEl.textContent = branchCode;
   }
 }
 
@@ -130,9 +144,64 @@ function showSubmissionBanner(submission) {
 }
 
 
-/* ── Init ───────────────────────────────────────────────────────── */
+/* ── Download All Documents ─────────────────────────────────── */
+
+/**
+ * Fetch all claim documents for the active profile and download them as a
+ * zip file containing individual PDFs inside a folder named after the veteran.
+ *
+ * @param {object} profile - the active PROFILES entry from profiles.js
+ */
+async function downloadAllDocuments(profile) {
+  const btn = document.getElementById("download-all-docs");
+  if (!btn) return;
+
+  const originalText = btn.textContent;
+  btn.textContent = "⏳ Preparing download…";
+  btn.disabled = true;
+
+  try {
+    const zip = new JSZip();
+    // Folder name: e.g. "James_T_Milner"
+    const folderName = profile.name.replace(/\s+/g, "_");
+    const folder = zip.folder(folderName);
+
+    for (const doc of profile.documents) {
+      if (!doc.url || doc.url === "#") continue;
+      const url = doc.url.startsWith("http") ? doc.url : `${VA_PORTAL_BASE}${doc.url}`;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) continue;
+        const bytes = await res.arrayBuffer();
+        // Use the original filename from the URL
+        const filename = doc.url.split("/").pop();
+        folder.file(filename, bytes);
+      } catch (e) {
+        console.warn(`Skipping ${doc.name}:`, e.message);
+      }
+    }
+
+    const blob = await zip.generateAsync({ type: "blob" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${folderName}_Claim_Documents.zip`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+
+  } catch (err) {
+    console.error("Download failed:", err);
+    alert("Could not generate the zip. Make sure the portal server is running.");
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
+
+
 
 document.addEventListener("DOMContentLoaded", () => {
+  initProfileSwitcher();   // build the nav dropdown before anything else
   initVABranchVerification();
   startSubmissionPolling();
 });
