@@ -3,18 +3,38 @@
 # Double-click this file to start all servers and open the app in your browser.
 
 ROOT="/Users/ismai/hackathon/vetclaim"
-PYTHON="/opt/anaconda3/bin/python3"
+VENV_DIR="$ROOT/venv"
 
-# ── Cleanup on exit ─────────────────────────────────────────
+# ── Resolve Python (prefer venv, fall back to system) ───────
+if [ -f "$VENV_DIR/bin/python3" ]; then
+  PYTHON="$VENV_DIR/bin/python3"
+elif command -v python3.13 &>/dev/null; then
+  PYTHON="python3.13"
+elif command -v python3 &>/dev/null; then
+  PYTHON="python3"
+else
+  osascript -e 'display alert "VetClaim AI" message "Python 3 not found. Please install Python 3.13+."'
+  exit 1
+fi
+
+# ── Bootstrap venv if missing ────────────────────────────────
+if [ ! -d "$VENV_DIR" ]; then
+  echo "Creating virtual environment and installing dependencies..."
+  $PYTHON -m venv "$VENV_DIR"
+  "$VENV_DIR/bin/pip" install --quiet -r "$ROOT/requirements.txt"
+  PYTHON="$VENV_DIR/bin/python3"
+fi
+
+# ── Cleanup on exit ──────────────────────────────────────────
 cleanup() {
   echo ""
   echo "Stopping all VetClaim AI services..."
-  jobs -p | xargs -r kill 2>/dev/null
+  jobs -p | xargs kill 2>/dev/null
   wait 2>/dev/null
   echo "All services stopped."
   exit 0
 }
-trap cleanup INT TERM
+trap cleanup INT TERM EXIT
 
 # ── Kill anything already on these ports ────────────────────
 for port in 5001 5050 5173; do
@@ -31,16 +51,16 @@ echo "Starting Mock VA Portal → http://localhost:5050"
 echo "Starting Frontend       → http://localhost:5173"
 (cd "$ROOT/frontend" && npm run dev 2>&1 | sed 's/^/[frontend]  /') &
 
-# ── Wait for servers to be ready, then open browsers ────────
+# ── Wait for servers to be ready, then open browser ─────────
 echo "Waiting for servers to start..."
-for url in "http://localhost:5001" "http://localhost:5050" "http://localhost:5173"; do
-  for i in $(seq 1 20); do
+for url in "http://localhost:5001/api/status" "http://localhost:5050" "http://localhost:5173"; do
+  for i in $(seq 1 30); do
     curl -s -o /dev/null "$url" && break
     sleep 1
   done
 done
 
-echo "Opening browsers..."
+echo "Opening browser..."
 open "http://localhost:5173"
 open "http://localhost:5050"
 
