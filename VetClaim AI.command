@@ -2,7 +2,7 @@
 # VetClaim AI — Desktop launcher
 # Double-click this file to start all servers and open the app in your browser.
 
-ROOT="$(cd "$(dirname "$0")" && pwd)"
+ROOT="/Users/ismai/hackathon/vetclaim"
 
 # ── Cleanup on exit ─────────────────────────────────────────
 cleanup() {
