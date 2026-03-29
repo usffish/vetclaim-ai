@@ -201,29 +201,23 @@ def index():
 @app.route("/testcase/<veteran>/<filename>")
 def serve_testcase_pdf(veteran: str, filename: str):
     """
-    Serve a PDF from the testcase/ folder so the dashboard can link to
-    real claim documents for the demo veterans.
+    Serve a PDF from the testcase/ or veterans/ folder so the dashboard can
+    link to real claim documents for the demo veterans.
 
-    WHY: The testcase PDFs live outside mock_va_portal/ so Flask's static
-    file serving doesn't reach them. This route bridges that gap without
-    moving the files or changing the project structure.
+    Checks veterans/ first (newer profiles), then falls back to testcase/.
 
-    Example: GET /testcase/james_millner/james_miller_decision_letter.pdf
+    Example: GET /testcase/arina-kiera/Rating_Decision_Arina_Kiera_11012025.pdf
     """
-    # Build the path relative to this file: ../testcase/<veteran>/<filename>
-    testcase_dir = os.path.join(os.path.dirname(__file__), "..", "testcase")
-    pdf_path = os.path.realpath(os.path.join(testcase_dir, veteran, filename))
+    base_dir = os.path.dirname(__file__)
 
-    # Security: ensure the resolved path stays inside the testcase directory.
-    # This prevents path traversal attacks (e.g. ../../etc/passwd).
-    safe_root = os.path.realpath(testcase_dir)
-    if not pdf_path.startswith(safe_root):
-        abort(403)
+    # Try veterans/ first, then fall back to testcase/
+    for folder in ("veterans", "testcase"):
+        candidate = os.path.realpath(os.path.join(base_dir, "..", folder, veteran, filename))
+        safe_root = os.path.realpath(os.path.join(base_dir, "..", folder))
+        if candidate.startswith(safe_root) and os.path.exists(candidate):
+            return send_file(candidate, mimetype="application/pdf", as_attachment=False)
 
-    if not os.path.exists(pdf_path):
-        abort(404)
-
-    return send_file(pdf_path, mimetype="application/pdf", as_attachment=False)
+    abort(404)
 
 
 if __name__ == "__main__":

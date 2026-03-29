@@ -84,37 +84,38 @@ const PROFILES = {
     ],
   },
 
-  // Profile 3: James R. Wilson — original demo veteran for the burn pit / PACT Act story
+  // Profile 3: Arina Kiera — U.S. Air Force, Afghanistan 2010–2011.
+  // VA File: 55 123 456. Decision date: Nov 1, 2025.
+  // PTSD granted (combat-related, IED blast), Narcolepsy denied (temporal gap / no CSF hypocretin),
+  // CFS/ME denied (post-service onset, nexus not established).
   wilson: {
-    name: "James R. Wilson",
-    claimNumber: "796-04-3456",
-    lastUpdated: "February 14, 2026",
-    rating: "30%",
-    payment: "$524.31",
-    decisionDate: "Jan 9, 2026",
-    branchCode: "ARMY",
+    name: "Arina Kiera",
+    claimNumber: "55-123-456",
+    lastUpdated: "November 1, 2025",
+    rating: "70%",
+    payment: "$1,663.06",
+    decisionDate: "Nov 1, 2025",
+    branchCode: "AIR_FORCE",
     service: {
-      branch: "U.S. Army",
-      dates: "Mar 1991 – Nov 2003",
-      era: "Gulf War / Post-9/11",
-      deployments: "Iraq (OIF) 2003, Kuwait 1991",
+      branch: "U.S. Air Force",
+      dates: "2006 – 2014",
+      era: "Post-9/11 / OEF",
+      deployments: "Afghanistan 2010–2011",
       discharge: "Honorable",
     },
-    appealDeadline: "January 9, 2027",
+    appealDeadline: "November 1, 2026",
     documents: [
-      { name: "📄 Rating Decision Letter (Jan 9, 2026)", url: "#" },
-      { name: "📄 C&P Exam Results (Dec 2025)",          url: "#" },
-      { name: "📄 DBQ — PTSD (Dec 2025)",                url: "#" },
-      { name: "📄 DBQ — TBI (Dec 2025)",                 url: "#" },
+      { name: "📄 Rating Decision Letter (Nov 1, 2025)",          url: "/testcase/arina-kiera/Rating_Decision_Arina_Kiera_11012025.pdf" },
+      { name: "📄 C&P Examination Report (Oct 5, 2025)",          url: "/testcase/arina-kiera/C&P_Examination_Arina_Kiera_10052025.pdf" },
+      { name: "📄 DBQ — PTSD (Sep 15, 2025)",                     url: "/testcase/arina-kiera/DBQ_PTSD_Arina_Kiera.pdf" },
+      { name: "📄 DBQ — Narcolepsy (Sep 10, 2025)",               url: "/testcase/arina-kiera/DBQ_Narcolepsy_Arina_Kiera.pdf" },
+      { name: "📄 DBQ — Chronic Fatigue Syndrome (Sep 20, 2025)", url: "/testcase/arina-kiera/DBQ_CFS_Arina_Kiera.pdf" },
     ],
     deniedCount: 2,
     conditions: [
-      { name: "Post-Traumatic Stress Disorder (PTSD)",         code: "9411", decision: "Service Connected", rating: "10%", denied: false },
-      { name: "Traumatic Brain Injury (TBI)",                  code: "8045", decision: "Service Connected", rating: "10%", denied: false },
-      { name: "Lumbar Strain (Lower Back)",                    code: "5237", decision: "Service Connected", rating: "20%", denied: false },
-      { name: "Tinnitus",                                      code: "6260", decision: "Service Connected", rating: "10%", denied: false },
-      { name: "Sleep Apnea",                                   code: "6847", decision: "Denied — No Nexus", rating: "0%",  denied: true  },
-      { name: "Respiratory Condition (Burn Pit Exposure)",     code: "6604", decision: "Denied — No Nexus", rating: "0%",  denied: true  },
+      { name: "Post-Traumatic Stress Disorder (PTSD) with Major Depressive Disorder", code: "9411", decision: "Service Connected — Direct (Combat-Related, IED Blast 2010)", rating: "70%", denied: false },
+      { name: "Narcolepsy Type 1 (with Cataplexy)",                                   code: "8108", decision: "Denied — Temporal Gap; No CSF Hypocretin Testing", rating: "0%", denied: true },
+      { name: "Chronic Fatigue Syndrome / Myalgic Encephalomyelitis (CFS/ME)",        code: "6354", decision: "Denied — Post-Service Onset; Nexus Not Established", rating: "0%", denied: true },
     ],
   },
 
@@ -138,7 +139,7 @@ function renderProfile(profileKey) {
   // --- Page subtitle: claim number + last updated ---
   const subtitleEl = document.querySelector(".va-subtitle");
   if (subtitleEl) {
-    subtitleEl.innerHTML = `Claim #${profile.claimNumber} &nbsp;&bull;&nbsp; Last updated: ${profile.lastUpdated}`;
+    subtitleEl.innerHTML = `Account #${profile.claimNumber} &nbsp;&bull;&nbsp; Last updated: ${profile.lastUpdated}`;
   }
 
   // --- Rating banner ---
