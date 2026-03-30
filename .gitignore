@@ -17,6 +17,11 @@
 # VA portal uploaded PDFs — generated at runtime, not source code
 mock_va_portal/submissions/
 
+# Generated PDFs — downloaded blank forms and filled output, never commit
+backend/*.pdf
+backend/output/
+backend/output/**
+
 # Python
 __pycache__/
 *.pyc

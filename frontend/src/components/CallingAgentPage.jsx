@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-const BACKEND_URL = import.meta.env.VITE_CALLING_AGENT_URL || 'http://localhost:8000'
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001'
 const NAV_BLUE = '#1B3A6B'
 
 const CLAIM_TYPES = [
@@ -37,7 +37,7 @@ export default function CallingAgentPage({ onBack }) {
     setCallRecord(null)
 
     try {
-      const res = await fetch(`${BACKEND_URL}/start-va-call`, {
+      const res = await fetch(`${BACKEND_URL}/api/start-va-call`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),

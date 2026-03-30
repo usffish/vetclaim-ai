@@ -61,16 +61,22 @@ from werkzeug.utils import secure_filename
 # ---------------------------------------------------------------------------
 
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:5173"])
+
+# Allow CORS origins from env (comma-separated) or fall back to localhost dev default
+_CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")]
+CORS(app, origins=_CORS_ORIGINS)
 
 _OUTPUT_DIR = _BACKEND_DIR / "output"
 _OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 _MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
+_JOB_TTL_SECONDS = 60 * 60  # evict completed/errored jobs after 1 hour
 
 # ---------------------------------------------------------------------------
 # Job store
 # ---------------------------------------------------------------------------
+
+import time as _time
 
 @dataclass
 class JobRecord:
@@ -80,9 +86,21 @@ class JobRecord:
     result: dict | None = None
     error: str | None = None
     events: queue.Queue = field(default_factory=queue.Queue)
+    created_at: float = field(default_factory=_time.time)
 
 
 jobs: dict[str, JobRecord] = {}
+
+
+def _evict_old_jobs() -> None:
+    """Remove completed/errored jobs older than TTL to prevent unbounded memory growth."""
+    cutoff = _time.time() - _JOB_TTL_SECONDS
+    to_delete = [
+        jid for jid, job in jobs.items()
+        if job.status in ("complete", "error") and job.created_at < cutoff
+    ]
+    for jid in to_delete:
+        jobs.pop(jid, None)
 
 # ---------------------------------------------------------------------------
 # Pipeline thread
@@ -155,6 +173,9 @@ def upload():
 
     if saved == 0:
         return jsonify({"error": "No valid PDF files provided"}), 400
+
+    # Evict stale jobs before adding a new one
+    _evict_old_jobs()
 
     # Create job record and start pipeline thread
     job = JobRecord(job_id=job_id, status="running", upload_dir=upload_dir)
@@ -287,6 +308,98 @@ def submit_appeal():
         return jsonify({"error": f"VA portal returned {portal_resp.status_code}"}), 502
     except Exception as exc:
         return jsonify({"error": f"Could not reach VA portal: {exc}"}), 502
+
+
+@app.route("/api/start-va-call", methods=["POST"])
+def start_va_call():
+    """Initiate a Vapi outbound call to the veteran's phone.
+
+    Requires VAPI_API_KEY and VAPI_PHONE_NUMBER_ID in .env.
+    The call reads a consent disclosure then connects to the VA on the veteran's behalf.
+    """
+    import requests as _req
+
+    vapi_key = os.getenv("VAPI_API_KEY", "").strip()
+    phone_number_id = os.getenv("VAPI_PHONE_NUMBER_ID", "").strip()
+
+    if not vapi_key or not phone_number_id:
+        return jsonify({"error": "VAPI_API_KEY and VAPI_PHONE_NUMBER_ID must be set in .env"}), 503
+
+    data = request.get_json(force=True, silent=True) or {}
+    customer_number = data.get("customer_number", "").strip()
+    if not customer_number:
+        return jsonify({"error": "customer_number is required"}), 400
+
+    full_name   = data.get("full_name", "Veteran")
+    last_four   = data.get("last_four_ssn", "")
+    claim_date  = data.get("claim_date", "")
+    claim_type  = data.get("claim_type", "disability")
+
+    system_prompt = (
+        f"You are a VA claims assistant calling on behalf of {full_name}. "
+        f"You are calling the VA benefits line (1-800-827-1000) to request a status update "
+        f"on their {claim_type} claim"
+        + (f" submitted on {claim_date}" if claim_date else "") + ". "
+        f"The veteran's last four SSN digits are {last_four}. "
+        "First read the consent disclosure: 'This call may be recorded for documentation purposes. "
+        "By staying on the line you consent to this recording.' "
+        "Then proceed to request the claim status update."
+    )
+
+    payload = {
+        "phoneNumberId": phone_number_id,
+        "customer": {"number": customer_number},
+        "assistant": {
+            "model": {
+                "provider": "google",
+                "model": "gemini-2.0-flash",
+                "messages": [{"role": "system", "content": system_prompt}],
+            },
+            "voice": {"provider": "playht", "voiceId": "jennifer"},
+            "firstMessage": (
+                f"Hello, this is an AI assistant calling on behalf of {full_name} "
+                "regarding a VA disability claim. "
+                "This call may be recorded for documentation purposes. "
+                "By staying on the line you consent to this recording. "
+                "I'll now connect to the VA benefits line to request a status update."
+            ),
+        },
+    }
+
+    try:
+        resp = _req.post(
+            "https://api.vapi.ai/call/phone",
+            json=payload,
+            headers={"Authorization": f"Bearer {vapi_key}"},
+            timeout=15,
+        )
+        if resp.ok:
+            return jsonify({"call_id": resp.json().get("id"), "status": "initiated"}), 201
+        return jsonify({"error": f"Vapi returned {resp.status_code}: {resp.text[:200]}"}), 502
+    except Exception as exc:
+        return jsonify({"error": f"Could not reach Vapi: {exc}"}), 502
+
+
+@app.route("/calls/<call_id>", methods=["GET"])
+def get_call(call_id: str):
+    """Proxy a call record lookup from Vapi."""
+    import requests as _req
+
+    vapi_key = os.getenv("VAPI_API_KEY", "").strip()
+    if not vapi_key:
+        return jsonify({"error": "VAPI_API_KEY not set"}), 503
+
+    try:
+        resp = _req.get(
+            f"https://api.vapi.ai/call/{call_id}",
+            headers={"Authorization": f"Bearer {vapi_key}"},
+            timeout=10,
+        )
+        if resp.ok:
+            return jsonify(resp.json()), 200
+        return jsonify({"error": f"Vapi returned {resp.status_code}"}), 502
+    except Exception as exc:
+        return jsonify({"error": f"Could not reach Vapi: {exc}"}), 502
 
 
 @app.route("/api/status", methods=["GET"])
