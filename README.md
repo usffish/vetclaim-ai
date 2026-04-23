@@ -20,8 +20,7 @@ A veteran uploads their VA documents (rating decision, C&P exam, DBQ, personal s
 4. **Calculates** the exact monthly and annual dollar impact of each finding
 5. **Pre-fills** the correct VA appeal forms (20-0996, 20-0995, 21-526EZ, 21-8940) with the veteran's data
 6. **Submits** forms to the VA portal and tracks the claim
-7. **Answers questions** via a context-aware AI chat grounded in the veteran's specific case
-8. **Calls the VA** on the veteran's behalf using an AI voice agent
+7. **Calls the VA** on the veteran's behalf using an AI voice agent via Vapi
 
 ---
 
@@ -30,9 +29,9 @@ A veteran uploads their VA documents (rating decision, C&P exam, DBQ, personal s
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         Frontend (React)                        │
-│  Upload → Tracker → Dashboard (Findings, Forms, Call, Chat)     │
+│  Landing → Upload → Tracker → Results / Calling Agent          │
 └────────────────────────┬────────────────────────────────────────┘
-                         │ HTTP / SSE / WebSocket
+                         │ HTTP / SSE
 ┌────────────────────────▼────────────────────────────────────────┐
 │                    Backend API (Flask, port 5001)               │
 │                                                                 │
@@ -46,10 +45,10 @@ A veteran uploads their VA documents (rating decision, C&P exam, DBQ, personal s
 │  │  Combined Rating │ CFR Compare │ Pay Impact Calculator   │  │
 │  └──────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
-                         │ WebSocket
+                         │ REST
 ┌────────────────────────▼────────────────────────────────────────┐
-│              Voice Agent (Gemini Live API proxy)                │
-│  Browser Mic → Backend WS → Gemini Live → Backend WS → Speaker │
+│                    Vapi.ai (outbound calls)                     │
+│  Backend → Vapi API → AI phone call to VA on veteran's behalf   │
 └─────────────────────────────────────────────────────────────────┘
                          │
 ┌────────────────────────▼────────────────────────────────────────┐
@@ -67,8 +66,7 @@ A veteran uploads their VA documents (rating decision, C&P exam, DBQ, personal s
 | Frontend | React 18, Vite 5, Tailwind CSS |
 | Backend | Python, Flask, Google ADK |
 | AI / LLM | Google Gemini 2.5 Flash |
-| Voice | Gemini Live API (WebSocket proxy) |
-| Phone Calls | Vapi.ai |
+| Phone Calls | Vapi.ai (outbound AI calls to VA) |
 | PDF Processing | pdfplumber (extraction), pypdf (form filling) |
 | Data Validation | Pydantic v2 |
 | Testing | pytest (backend), vitest (frontend/portal) |
@@ -115,11 +113,8 @@ VA forms use XFA (XML Forms Architecture), which only renders in Adobe Reader. T
 ### Real-Time Pipeline Tracking
 The frontend streams pipeline progress via **Server-Sent Events (SSE)** — parsing → auditing → form filling — with live status updates and no polling.
 
-### AI Voice Agent
-A WebSocket proxy connects the browser microphone to the **Gemini Live API**, which handles speech-to-text, reasoning, and text-to-speech natively in a single connection. The voice agent is grounded in the veteran's claim context and proactively surfaces TDIU and PACT Act eligibility.
-
-### Context-Aware Chat
-A streaming chat endpoint provides a Gemini-powered AI advisor with full context: the veteran's audit results, CFR data, and any VA call transcripts. Responses are grounded in the veteran's specific case — not generic advice.
+### AI Calling Agent
+The Calling Agent page lets veterans initiate an outbound AI phone call to the VA. The veteran enters their phone number, name, last four SSN digits, claim date, and claim type. The backend calls the **Vapi.ai API**, which places a real phone call using a Gemini-powered voice assistant that reads a consent disclosure and requests a claim status update on the veteran's behalf. Call records can be retrieved by call ID.
 
 ---
 
@@ -155,9 +150,10 @@ vetclaim/
 │       ├── components/
 │       │   ├── LandingPage.jsx
 │       │   ├── UploadPage.jsx
-│       │   ├── TrackerPage.jsx  # SSE pipeline progress
-│       │   └── Dashboard.jsx    # Results: Findings, Forms, Call, Chat tabs
-│       └── App.jsx              # Routing + session persistence
+│       │   ├── TrackerPage.jsx       # SSE pipeline progress
+│       │   ├── AuditResultsPage.jsx  # Findings and pre-filled forms
+│       │   └── CallingAgentPage.jsx  # Vapi outbound call interface
+│       └── App.jsx                   # Page routing
 ├── mock_va_portal/              # Simulated VA eBenefits portal for testing
 ├── start.sh                     # One-command startup for all services
 └── requirements.txt
@@ -176,8 +172,8 @@ vetclaim/
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/mtbadri/vetclaim.git
-cd vetclaim
+git clone https://github.com/usffish/vetclaim-ai.git
+cd vetclaim-ai
 cp .env.example .env
 # Fill in your API keys in .env
 ```
@@ -190,6 +186,8 @@ cp .env.example .env
 | `ELEVENLABS_API_KEY` | [ElevenLabs](https://elevenlabs.io) |
 | `VA_API_KEY` | [VA Developer Portal](https://developer.va.gov) |
 | `VA_FORMS_API_KEY` | [VA Forms API sandbox](https://developer.va.gov/explore/api/va-forms/sandbox-access) |
+| `VAPI_API_KEY` | [Vapi.ai](https://vapi.ai) |
+| `VAPI_PHONE_NUMBER_ID` | Vapi dashboard — your provisioned phone number ID |
 
 ### 3. Start everything
 
@@ -232,11 +230,10 @@ npx vitest --run
 | `GET` | `/api/stream/<job_id>` | SSE stream of pipeline progress |
 | `GET` | `/api/result/<job_id>` | Completed audit result JSON |
 | `GET` | `/api/download?path=...` | Download pre-filled VA form PDF |
-| `POST` | `/api/submit-appeal` | Submit forms to VA portal |
-| `POST` | `/api/call-va` | Initiate AI phone call to VA via Vapi |
-| `GET` | `/api/get-transcript` | Fetch call transcript |
-| `POST` | `/api/chat` | Streaming chat with AI advisor |
-| `WS` | `/voice/ws?token=...` | Voice agent WebSocket |
+| `POST` | `/api/submit-appeal` | Submit forms to mock VA portal |
+| `POST` | `/api/start-va-call` | Initiate outbound AI call to VA via Vapi |
+| `GET` | `/calls/<call_id>` | Fetch call record from Vapi |
+| `GET` | `/api/status` | Health check |
 
 ---
 
@@ -257,7 +254,7 @@ All reference data is stored locally as JSON — no external lookups at runtime:
 - No PII (veteran name, SSN, claim number) is persisted beyond the session scope
 - All audio data is transient — never written to disk
 - Path traversal protection on the `/api/download` endpoint
-- All claim data endpoints require an authenticated session token
+- CORS origins are configurable via `CORS_ORIGINS` env var
 
 ---
 
