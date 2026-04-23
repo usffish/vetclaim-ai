@@ -1,129 +1,266 @@
 # VetClaim AI
 
-AI-powered VA disability claim auditor. Upload your decision letter, DBQ forms, and C&P exam — get back a full audit with identified rating errors, pre-filled VA appeal forms, and one-click portal submission.
+**An AI-powered VA disability claims assistant that helps veterans identify missed compensation, navigate appeals, and submit the right forms — automatically.**
 
-![VetClaim AI demo flow](docs/demo.gif)
-
----
-
-## What it does
-
-1. **Upload** your VA documents (decision letter, DBQ, C&P exam)
-2. **AI audit** runs against CFR Title 38 Part 4 — flags under-ratings, wrong codes, PACT Act eligibility, TDIU eligibility, and combined rating math errors
-3. **Pre-filled VA forms** (20-0996, 20-0995, 21-526EZ, 21-8940) are generated and ready to download
-4. **Submit** directly to the mock VA portal with one click
-5. **Call the VA** — AI agent calls your phone, reads a consent disclosure, then requests a claim status update on your behalf
+> Built at a hackathon. Designed for real impact.
 
 ---
 
-## Stack
+## The Problem
 
-- **Backend** — Python 3.13, Flask, Google ADK (Gemini 2.0 Flash)
-- **Frontend** — React 18, Vite
-- **Mock VA Portal** — Flask
-- **Calling Agent** — Vapi
+The VA disability claims process is notoriously complex. Veterans are routinely under-rated, assigned wrong diagnostic codes, or miss out on benefits they're legally entitled to under laws like the PACT Act. The difference between a 70% and 100% rating can be over $2,000/month — for life. Most veterans don't have the legal or medical expertise to catch these errors on their own.
+
+## What VetClaim AI Does
+
+A veteran uploads their VA documents (rating decision, C&P exam, DBQ, personal statement). The app:
+
+1. **Parses** the documents and extracts structured claim data
+2. **Audits** every condition against CFR Title 38 Part 4 regulations using an AI agent with specialized tools
+3. **Flags** under-ratings, wrong diagnostic codes, PACT Act eligibility, TDIU eligibility, and combined rating math errors
+4. **Calculates** the exact monthly and annual dollar impact of each finding
+5. **Pre-fills** the correct VA appeal forms (20-0996, 20-0995, 21-526EZ, 21-8940) with the veteran's data
+6. **Submits** forms to the VA portal and tracks the claim
+7. **Answers questions** via a context-aware AI chat grounded in the veteran's specific case
+8. **Calls the VA** on the veteran's behalf using an AI voice agent
 
 ---
 
-## Setup
+## Architecture
 
-### 1. Prerequisites
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Frontend (React)                        │
+│  Upload → Tracker → Dashboard (Findings, Forms, Call, Chat)     │
+└────────────────────────┬────────────────────────────────────────┘
+                         │ HTTP / SSE / WebSocket
+┌────────────────────────▼────────────────────────────────────────┐
+│                    Backend API (Flask, port 5001)               │
+│                                                                 │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────┐ │
+│  │ Parser Agent│  │ Auditor Agent│  │     Filer Agent        │ │
+│  │ (pdfplumber)│  │ (Google ADK) │  │ (pypdf + AcroForm)     │ │
+│  └─────────────┘  └──────┬───────┘  └────────────────────────┘ │
+│                          │ Tool calls                           │
+│  ┌───────────────────────▼──────────────────────────────────┐  │
+│  │  CFR Lookup │ PACT Act Check │ TDIU Check │ Pay Lookup   │  │
+│  │  Combined Rating │ CFR Compare │ Pay Impact Calculator   │  │
+│  └──────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                         │ WebSocket
+┌────────────────────────▼────────────────────────────────────────┐
+│              Voice Agent (Gemini Live API proxy)                │
+│  Browser Mic → Backend WS → Gemini Live → Backend WS → Speaker │
+└─────────────────────────────────────────────────────────────────┘
+                         │
+┌────────────────────────▼────────────────────────────────────────┐
+│              Mock VA Portal (Flask, port 5050)                  │
+│              Simulates VA eBenefits for testing                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, Vite 5, Tailwind CSS |
+| Backend | Python, Flask, Google ADK |
+| AI / LLM | Google Gemini 2.5 Flash |
+| Voice | Gemini Live API (WebSocket proxy) |
+| Phone Calls | Vapi.ai |
+| PDF Processing | pdfplumber (extraction), pypdf (form filling) |
+| Data Validation | Pydantic v2 |
+| Testing | pytest (backend), vitest (frontend/portal) |
+
+---
+
+## Key Features
+
+### AI Auditor Agent
+Built on **Google ADK** (`LlmAgent`), the auditor receives raw text from parsed VA documents and calls a suite of specialized tools to audit every condition:
+
+- **CFR Lookup** — retrieves rating criteria at every percentage level for a diagnostic code
+- **CFR Compare Rating** — compares the VA's assigned rating against CFR thresholds to detect under-ratings
+- **PACT Act Check** — determines if a condition qualifies as a presumptive (no nexus letter required) based on deployment locations and service era
+- **TDIU Check** — evaluates eligibility for Total Disability Individual Unemployability under 38 CFR §4.16, which pays at the 100% rate
+- **Combined Rating Calculator** — verifies the VA's combined rating using whole-person math (`1 - ((1-r1) × (1-r2) × ... × (1-rN))`) and flags arithmetic errors
+- **VA Pay Lookup** — retrieves 2026 monthly pay rates by rating and dependent status
+- **Pay Impact Calculator** — quantifies the monthly and annual dollar value of each finding
+
+The agent outputs structured `AuditFlag` objects with flag type, CFR citation, confidence score, and dollar impact.
+
+### Flag Types
+
+| Flag | Meaning |
+|---|---|
+| `UNDER_RATED` | Assigned rating is lower than symptoms warrant per CFR criteria |
+| `WRONG_CODE` | Condition mapped to incorrect diagnostic code |
+| `MISSING_NEXUS` | Service connection not established; nexus letter needed |
+| `PACT_ACT_ELIGIBLE` | Condition qualifies as presumptive — no nexus required by law |
+| `TDIU_ELIGIBLE` | Veteran qualifies for 100% pay rate due to unemployability |
+| `COMBINED_RATING_ERROR` | VA's combined rating math is incorrect |
+| `SEPARATE_RATING_MISSED` | Condition should be rated separately but was not |
+
+### Hybrid Audit (LLM + Rule-Based)
+The LLM agent runs alongside a deterministic rule-based auditor. For example: if a DBQ contains gait keywords ("staggering", "unsteady") but the decision letter assigns 0% for a related condition, the rule-based auditor flags it for vestibular dysfunction (DC 6204) with high confidence. Both results are merged.
+
+### Intelligent Form Filling
+VA forms use XFA (XML Forms Architecture), which only renders in Adobe Reader. The filer agent:
+1. Strips the XFA layer so the form falls back to AcroForm (works in Preview, Chrome, Firefox)
+2. Maps veteran data to exact AcroForm field paths (e.g., `form1[0].#subform[2].Veterans_First_Name[0]`)
+3. Patches appearance streams to fix a pypdf rendering bug
+4. Automatically selects the right form(s) based on flag types
+
+### Real-Time Pipeline Tracking
+The frontend streams pipeline progress via **Server-Sent Events (SSE)** — parsing → auditing → form filling — with live status updates and no polling.
+
+### AI Voice Agent
+A WebSocket proxy connects the browser microphone to the **Gemini Live API**, which handles speech-to-text, reasoning, and text-to-speech natively in a single connection. The voice agent is grounded in the veteran's claim context and proactively surfaces TDIU and PACT Act eligibility.
+
+### Context-Aware Chat
+A streaming chat endpoint provides a Gemini-powered AI advisor with full context: the veteran's audit results, CFR data, and any VA call transcripts. Responses are grounded in the veteran's specific case — not generic advice.
+
+---
+
+## Project Structure
+
+```
+vetclaim/
+├── backend/
+│   ├── agents/
+│   │   ├── auditor_agent.py     # Google ADK LlmAgent — core audit logic
+│   │   ├── filer_agent.py       # PDF form downloader and filler
+│   │   ├── parser_agent.py      # PDF text extraction and classification
+│   │   └── mapping_agent.py     # Gemini-powered field name mapper
+│   ├── tools/
+│   │   ├── cfr_lookup.py        # CFR Title 38 Part 4 diagnostic code lookup
+│   │   ├── combined_rating.py   # VA whole-person combined rating math
+│   │   ├── pact_act_check.py    # PACT Act presumptive eligibility check
+│   │   ├── tdiu_check.py        # TDIU eligibility under 38 CFR §4.16
+│   │   └── va_pay_lookup.py     # 2026 VA disability pay rates
+│   ├── voice_agent/
+│   │   ├── router.py            # FastAPI WebSocket endpoint /voice/ws
+│   │   ├── session.py           # GeminiLiveSession wrapper
+│   │   └── models.py            # ClaimContext, TranscriptEntry
+│   ├── data/
+│   │   ├── cfr38_part4.json     # CFR Title 38 Part 4 rating criteria
+│   │   ├── combined_ratings_table.json
+│   │   ├── pact_act_conditions.json
+│   │   └── va_pay_rates_2026.json
+│   ├── schemas.py               # Pydantic models (ParsedClaim, AuditResult, etc.)
+│   └── server.py                # Flask API server
+├── frontend/
+│   └── src/
+│       ├── components/
+│       │   ├── LandingPage.jsx
+│       │   ├── UploadPage.jsx
+│       │   ├── TrackerPage.jsx  # SSE pipeline progress
+│       │   └── Dashboard.jsx    # Results: Findings, Forms, Call, Chat tabs
+│       └── App.jsx              # Routing + session persistence
+├── mock_va_portal/              # Simulated VA eBenefits portal for testing
+├── start.sh                     # One-command startup for all services
+└── requirements.txt
+```
+
+---
+
+## Getting Started
+
+### Prerequisites
 
 - Python 3.13+
 - Node.js 18+
-- A `GOOGLE_API_KEY` from [Google AI Studio](https://aistudio.google.com)
+- API keys (see below)
 
-### 2. Clone and configure
+### 1. Clone and configure
 
 ```bash
 git clone https://github.com/mtbadri/vetclaim.git
 cd vetclaim
 cp .env.example .env
-# Edit .env and add your GOOGLE_API_KEY at minimum
+# Fill in your API keys in .env
 ```
 
-### 3. Install dependencies
+### 2. API Keys
+
+| Variable | Where to get it |
+|---|---|
+| `GOOGLE_API_KEY` | [Google AI Studio](https://aistudio.google.com/app/apikey) |
+| `ELEVENLABS_API_KEY` | [ElevenLabs](https://elevenlabs.io) |
+| `VA_API_KEY` | [VA Developer Portal](https://developer.va.gov) |
+| `VA_FORMS_API_KEY` | [VA Forms API sandbox](https://developer.va.gov/explore/api/va-forms/sandbox-access) |
+
+### 3. Start everything
 
 ```bash
-# Python (from repo root)
-pip install -r requirements.txt
-
-# Frontend
-cd frontend && npm install
+./start.sh
 ```
 
-### 4. Run
+This creates a Python venv, installs dependencies, and starts all three services:
 
-Open three terminals:
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:5173 |
+| Backend API | http://localhost:5001 |
+| Mock VA Portal | http://localhost:5050 |
 
-```bash
-# Terminal 1 — Backend API (port 5001)
-python backend/server.py
+### 4. Try it with a sample case
 
-# Terminal 2 — Frontend (port 5173)
-cd frontend && npm run dev
-
-# Terminal 3 — Mock VA Portal (port 5050)
-python mock_va_portal/server.py
-```
-
-Then open [http://localhost:5173](http://localhost:5173).
+Sample veteran documents are in `veterans/` (multiple test cases). Upload the PDFs from any veteran folder through the frontend to see the full pipeline in action.
 
 ---
 
-## Optional: VA Calling Agent
-
-To enable the calling feature, add to `.env`:
-
-```
-VAPI_API_KEY=your_vapi_key
-VAPI_PHONE_NUMBER_ID=your_phone_number_id
-```
-
-Get keys at [vapi.ai](https://vapi.ai).
-
----
-
-## Running tests
+## Running Tests
 
 ```bash
 # Backend
 pytest backend/
 
-# Mock portal JS tests
-cd mock_va_portal && npx vitest --run
+# Frontend / Mock VA Portal
+cd mock_va_portal
+npx vitest --run
 ```
 
 ---
 
-## Project structure
+## API Reference
 
-```
-backend/
-  server.py          # Flask API — upload, SSE stream, audit results, Vapi calling
-  agents/
-    auditor_agent.py # Gemini LlmAgent with 8 CFR/PACT/TDIU tools
-    parser_agent.py  # PDF text extraction
-    filer_agent.py   # VA form download and AcroForm fill
-  tools/             # CFR lookup, combined rating, PACT Act, TDIU, VA pay
-  data/              # CFR38 Part 4, PACT Act conditions, VA pay rates 2026
-
-frontend/src/
-  App.jsx                        # Page routing
-  components/LandingPage.jsx     # Hero + feature overview
-  components/UploadPage.jsx      # Drag-and-drop PDF upload
-  components/TrackerPage.jsx     # Live SSE pipeline progress
-  components/AuditResultsPage.jsx # Findings, forms, portal submission
-  components/CallingAgentPage.jsx # VA calling agent UI
-
-mock_va_portal/
-  server.py      # Flask — receives appeal PDFs, stores submissions
-  index.html     # Veteran dashboard
-  confirmation.html # Submission confirmation
-```
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/upload` | Upload PDFs, start pipeline, returns `job_id` |
+| `GET` | `/api/stream/<job_id>` | SSE stream of pipeline progress |
+| `GET` | `/api/result/<job_id>` | Completed audit result JSON |
+| `GET` | `/api/download?path=...` | Download pre-filled VA form PDF |
+| `POST` | `/api/submit-appeal` | Submit forms to VA portal |
+| `POST` | `/api/call-va` | Initiate AI phone call to VA via Vapi |
+| `GET` | `/api/get-transcript` | Fetch call transcript |
+| `POST` | `/api/chat` | Streaming chat with AI advisor |
+| `WS` | `/voice/ws?token=...` | Voice agent WebSocket |
 
 ---
 
-## Disclaimer
+## Data Sources
 
-VetClaim AI is a document preparation tool built for a hackathon. It does not provide legal or medical advice. Always work with an accredited VSO, attorney, or claims agent for official VA claims.
+All reference data is stored locally as JSON — no external lookups at runtime:
+
+- **CFR Title 38 Part 4** — Complete diagnostic code database with rating criteria at every percentage level
+- **PACT Act Conditions** — Presumptive conditions by exposure category (burn pits, Agent Orange, radiation, etc.)
+- **VA Pay Rates 2026** — Monthly disability compensation by rating (0–100%) and dependent status
+- **Combined Ratings Table** — VA whole-person math lookup table
+
+---
+
+## Security Notes
+
+- `.env` is gitignored — never commit API keys
+- No PII (veteran name, SSN, claim number) is persisted beyond the session scope
+- All audio data is transient — never written to disk
+- Path traversal protection on the `/api/download` endpoint
+- All claim data endpoints require an authenticated session token
+
+---
+
+## License
+
+MIT
