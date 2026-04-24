@@ -2,7 +2,14 @@
 
 **An AI-powered VA disability claims assistant that helps veterans identify missed compensation, navigate appeals, and submit the right forms — automatically.**
 
-> Built at a hackathon. Designed for real impact.
+![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-000000?style=flat-square&logo=flask&logoColor=white)
+![React](https://img.shields.io/badge/React-20232A?style=flat-square&logo=react&logoColor=61DAFB)
+![Google ADK](https://img.shields.io/badge/Google_ADK-FF6F00?style=flat-square&logo=google&logoColor=white)
+![Gemini](https://img.shields.io/badge/Gemini_2.5_Flash-412991?style=flat-square&logo=google&logoColor=white)
+![Vapi](https://img.shields.io/badge/Vapi.ai-FF6F00?style=flat-square&logoColor=white)
+
+> Built at HackUSF 2026. Designed for real impact.
 
 ---
 
@@ -261,3 +268,9 @@ All reference data is stored locally as JSON — no external lookups at runtime:
 ## License
 
 MIT
+
+---
+
+## Author
+
+**Ismail Jhaveri** — [LinkedIn](https://www.linkedin.com/in/ismail-jhaveri-2021/) · [ismailj@usf.edu](mailto:ismailj@usf.edu)
