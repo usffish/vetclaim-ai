@@ -83,29 +83,29 @@ A veteran uploads their VA documents (rating decision, C&P exam, DBQ, personal s
 ## Key Features
 
 ### AI Auditor Agent
-Built on **Google ADK** (`LlmAgent`), the auditor receives raw text from parsed VA documents and calls a suite of specialized tools to audit every condition:
+Built on **Google ADK** (LlmAgent), the auditor receives raw text from parsed VA documents and calls a suite of specialized tools to audit every condition:
 
 - **CFR Lookup** — retrieves rating criteria at every percentage level for a diagnostic code
 - **CFR Compare Rating** — compares the VA's assigned rating against CFR thresholds to detect under-ratings
 - **PACT Act Check** — determines if a condition qualifies as a presumptive (no nexus letter required) based on deployment locations and service era
 - **TDIU Check** — evaluates eligibility for Total Disability Individual Unemployability under 38 CFR §4.16, which pays at the 100% rate
-- **Combined Rating Calculator** — verifies the VA's combined rating using whole-person math (`1 - ((1-r1) × (1-r2) × ... × (1-rN))`) and flags arithmetic errors
+- **Combined Rating Calculator** — verifies the VA's combined rating using whole-person math (1 - ((1-r1) × (1-r2) × ... × (1-rN))) and flags arithmetic errors
 - **VA Pay Lookup** — retrieves 2026 monthly pay rates by rating and dependent status
 - **Pay Impact Calculator** — quantifies the monthly and annual dollar value of each finding
 
-The agent outputs structured `AuditFlag` objects with flag type, CFR citation, confidence score, and dollar impact.
+The agent outputs structured AuditFlag objects with flag type, CFR citation, confidence score, and dollar impact.
 
 ### Flag Types
 
 | Flag | Meaning |
 |---|---|
-| `UNDER_RATED` | Assigned rating is lower than symptoms warrant per CFR criteria |
-| `WRONG_CODE` | Condition mapped to incorrect diagnostic code |
-| `MISSING_NEXUS` | Service connection not established; nexus letter needed |
-| `PACT_ACT_ELIGIBLE` | Condition qualifies as presumptive — no nexus required by law |
-| `TDIU_ELIGIBLE` | Veteran qualifies for 100% pay rate due to unemployability |
-| `COMBINED_RATING_ERROR` | VA's combined rating math is incorrect |
-| `SEPARATE_RATING_MISSED` | Condition should be rated separately but was not |
+| UNDER_RATED | Assigned rating is lower than symptoms warrant per CFR criteria |
+| WRONG_CODE | Condition mapped to incorrect diagnostic code |
+| MISSING_NEXUS | Service connection not established; nexus letter needed |
+| PACT_ACT_ELIGIBLE | Condition qualifies as presumptive — no nexus required by law |
+| TDIU_ELIGIBLE | Veteran qualifies for 100% pay rate due to unemployability |
+| COMBINED_RATING_ERROR | VA's combined rating math is incorrect |
+| SEPARATE_RATING_MISSED | Condition should be rated separately but was not |
 
 ### Hybrid Audit (LLM + Rule-Based)
 The LLM agent runs alongside a deterministic rule-based auditor. For example: if a DBQ contains gait keywords ("staggering", "unsteady") but the decision letter assigns 0% for a related condition, the rule-based auditor flags it for vestibular dysfunction (DC 6204) with high confidence. Both results are merged.
@@ -113,7 +113,7 @@ The LLM agent runs alongside a deterministic rule-based auditor. For example: if
 ### Intelligent Form Filling
 VA forms use XFA (XML Forms Architecture), which only renders in Adobe Reader. The filer agent:
 1. Strips the XFA layer so the form falls back to AcroForm (works in Preview, Chrome, Firefox)
-2. Maps veteran data to exact AcroForm field paths (e.g., `form1[0].#subform[2].Veterans_First_Name[0]`)
+2. Maps veteran data to exact AcroForm field paths (e.g., form1[0].#subform[2].Veterans_First_Name[0])
 3. Patches appearance streams to fix a pypdf rendering bug
 4. Automatically selects the right form(s) based on flag types
 
@@ -189,12 +189,12 @@ cp .env.example .env
 
 | Variable | Where to get it |
 |---|---|
-| `GOOGLE_API_KEY` | [Google AI Studio](https://aistudio.google.com/app/apikey) |
-| `ELEVENLABS_API_KEY` | [ElevenLabs](https://elevenlabs.io) |
-| `VA_API_KEY` | [VA Developer Portal](https://developer.va.gov) |
-| `VA_FORMS_API_KEY` | [VA Forms API sandbox](https://developer.va.gov/explore/api/va-forms/sandbox-access) |
-| `VAPI_API_KEY` | [Vapi.ai](https://vapi.ai) |
-| `VAPI_PHONE_NUMBER_ID` | Vapi dashboard — your provisioned phone number ID |
+| GOOGLE_API_KEY | [Google AI Studio](https://aistudio.google.com/app/apikey) |
+| ELEVENLABS_API_KEY | [ElevenLabs](https://elevenlabs.io) |
+| VA_API_KEY | [VA Developer Portal](https://developer.va.gov) |
+| VA_FORMS_API_KEY | [VA Forms API sandbox](https://developer.va.gov/explore/api/va-forms/sandbox-access) |
+| VAPI_API_KEY | [Vapi.ai](https://vapi.ai) |
+| VAPI_PHONE_NUMBER_ID | Vapi dashboard — your provisioned phone number ID |
 
 ### 3. Start everything
 
@@ -212,7 +212,7 @@ This creates a Python venv, installs dependencies, and starts all three services
 
 ### 4. Try it with a sample case
 
-Sample veteran documents are in `veterans/` (multiple test cases). Upload the PDFs from any veteran folder through the frontend to see the full pipeline in action.
+Sample veteran documents are in veterans/ (multiple test cases). Upload the PDFs from any veteran folder through the frontend to see the full pipeline in action.
 
 ---
 
@@ -233,14 +233,14 @@ npx vitest --run
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/api/upload` | Upload PDFs, start pipeline, returns `job_id` |
-| `GET` | `/api/stream/<job_id>` | SSE stream of pipeline progress |
-| `GET` | `/api/result/<job_id>` | Completed audit result JSON |
-| `GET` | `/api/download?path=...` | Download pre-filled VA form PDF |
-| `POST` | `/api/submit-appeal` | Submit forms to mock VA portal |
-| `POST` | `/api/start-va-call` | Initiate outbound AI call to VA via Vapi |
-| `GET` | `/calls/<call_id>` | Fetch call record from Vapi |
-| `GET` | `/api/status` | Health check |
+| POST | /api/upload | Upload PDFs, start pipeline, returns job_id |
+| GET | /api/stream/\<job_id\> | SSE stream of pipeline progress |
+| GET | /api/result/\<job_id\> | Completed audit result JSON |
+| GET | /api/download?path=... | Download pre-filled VA form PDF |
+| POST | /api/submit-appeal | Submit forms to mock VA portal |
+| POST | /api/start-va-call | Initiate outbound AI call to VA via Vapi |
+| GET | /calls/\<call_id\> | Fetch call record from Vapi |
+| GET | /api/status | Health check |
 
 ---
 
@@ -257,11 +257,11 @@ All reference data is stored locally as JSON — no external lookups at runtime:
 
 ## Security Notes
 
-- `.env` is gitignored — never commit API keys
+- .env is gitignored — never commit API keys
 - No PII (veteran name, SSN, claim number) is persisted beyond the session scope
 - All audio data is transient — never written to disk
-- Path traversal protection on the `/api/download` endpoint
-- CORS origins are configurable via `CORS_ORIGINS` env var
+- Path traversal protection on the /api/download endpoint
+- CORS origins are configurable via CORS_ORIGINS env var
 
 ---
 
